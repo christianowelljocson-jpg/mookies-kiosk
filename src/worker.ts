@@ -1,11 +1,10 @@
 // Cloudflare Worker for the kiosk report.
 // - GET  /            the form (public/index.html, served from static assets)
 // - GET  /api/config  kiosks, staff, flavors, box prices and the last "Left" counts
-// - POST /api/report  saves one end-of-shift report as Pending
-// - scheduled (every 5 minutes): posts approved reports to LEDGER (src/kiosk.ts)
+// - POST /api/report  fills that day's kiosk row in Income & Expense (src/ie.ts)
 import { createSheetsClient } from './sheets/client.js';
 import { createTokenProvider } from './sheets/google-auth.js';
-import { parseReport, readConfig, ReportError, submitReport, syncLedger, type SheetsLike } from './kiosk';
+import { parseReport, readConfig, ReportError, submitReport, type SheetsLike } from './ie';
 
 export interface Env {
   ENVIRONMENT?: string;
@@ -14,12 +13,8 @@ export interface Env {
   GOOGLE_SERVICE_ACCOUNT_EMAIL?: string;
   /** Worker secret. */
   GOOGLE_PRIVATE_KEY?: string;
-  /** "on" (or unset) runs the 5-minute LEDGER sync; anything else pauses it. */
-  SYNC_MODE?: string;
   ASSETS?: { fetch(request: Request): Promise<Response> };
 }
-
-type Ctx = { waitUntil(p: Promise<unknown>): void };
 
 const log = (event: string, data: object = {}) => console.log(JSON.stringify({ event, ...data }));
 
@@ -69,7 +64,7 @@ export async function handleApi(request: Request, env: Env, deps: { client?: She
       const cfg = await readConfig(client, now());
       const report = parseReport(body, cfg);
       const saved = await submitReport(client, report, now());
-      log('kiosk_report_saved', { id: saved.id, row: saved.row, duplicate: saved.duplicate });
+      log('kiosk_report_saved', saved);
       return json({ ok: true, id: saved.id, duplicate: saved.duplicate });
     }
     return json({ error: 'Not found.' }, url.pathname.startsWith('/api/') ? 404 : 405);
@@ -88,21 +83,5 @@ export default {
     if (url.pathname.startsWith('/api/')) return handleApi(request, env);
     if (env.ASSETS) return env.ASSETS.fetch(request);
     return new Response('Not found', { status: 404 });
-  },
-  async scheduled(_event: { cron: string; scheduledTime: number }, env: Env, ctx: Ctx) {
-    if ((env.SYNC_MODE ?? 'on').trim() !== 'on') {
-      log('kiosk_sync_paused');
-      return;
-    }
-    const job = (async () => {
-      try {
-        const r = await syncLedger(sheetsFor(env), Date.now(), log);
-        log('kiosk_sync', r);
-      } catch (e) {
-        log('kiosk_sync_failed', { error: e instanceof Error ? e.message : String(e) });
-      }
-    })();
-    ctx.waitUntil(job);
-    await job;
   },
 };

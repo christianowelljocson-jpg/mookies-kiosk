@@ -16,13 +16,13 @@
   "routes": [{ "pattern": "kiosk.mookiesoatmealcookies.com", "custom_domain": true }],
   "vars": {
     "ENVIRONMENT": "production",
-    // Mookies_Operations_and_Finance (the accounting Sheet). It must be shared
-    // with the service account below as Editor.
-    "SHEET_ID": "14Ycph3xUAYxuN8qnh3icYeNnhtrwi8w9XO29nA6q9Sc",
-    "GOOGLE_SERVICE_ACCOUNT_EMAIL": "mookies-orders@mookies-orders.iam.gserviceaccount.com",
-    // "on": every 5 minutes, approved kiosk reports are posted to LEDGER.
-    // Anything else stops that (the form still works).
-    "SYNC_MODE": "on"
+    // Maan's accounting Sheet ("Accounting file for Mookies_2026_NEW with Claude").
+    // Reports go to its Income & Expense tab. It must be shared with the
+    // service account below as Editor.
+    "SHEET_ID": "10KQqNf0uhDQHOVCl5wZNm0DaCXvVqJFCAFcNP9UCzZ8",
+    "GOOGLE_SERVICE_ACCOUNT_EMAIL": "mookies-orders@mookies-orders.iam.gserviceaccount.com"
   },
-  "triggers": { "crons": ["*/5 * * * *"] }
+  // No scheduled jobs: reports are written straight into the sheet. An empty
+  // list removes the old 5-minute LEDGER job from Cloudflare.
+  "triggers": { "crons": [] }
 }

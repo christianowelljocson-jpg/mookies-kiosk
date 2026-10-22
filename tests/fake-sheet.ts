@@ -1,7 +1,7 @@
-// An in-memory spreadsheet with just what src/kiosk.ts uses: values:batchGet
-// (rows up to the last row with data, trailing blanks trimmed, like Google)
-// and values:batchUpdate. Named ranges resolve to a tab range.
-import type { SheetsLike } from '../src/kiosk';
+// An in-memory spreadsheet with just what src/ie.ts uses: values:batchGet
+// (rows up to the last row with data, trailing blanks trimmed, like Google),
+// values:batchUpdate, and :batchUpdate for inserting rows and row colour.
+import type { SheetsLike } from '../src/ie';
 
 const colNum = (letters: string) => [...letters].reduce((n, ch) => n * 26 + ch.charCodeAt(0) - 64, 0) - 1;
 
@@ -14,8 +14,10 @@ function parse(range: string) {
 
 export class FakeSheet implements SheetsLike {
   tabs: Record<string, any[][]> = {};
-  names: Record<string, string> = {};
-  calls: { kind: 'get' | 'update'; ranges: string[]; option?: string }[] = [];
+  ids: Record<string, number> = {};
+  /** Background colour per tab and 0-based row. */
+  fills: Record<string, Record<number, object>> = {};
+  calls: { kind: 'get' | 'update' | 'batch'; detail: unknown }[] = [];
 
   cell(tab: string, a1: string) {
     const m = /^([A-Z]+)(\d+)$/.exec(a1)!;
@@ -33,11 +35,16 @@ export class FakeSheet implements SheetsLike {
     });
   }
 
+  async getMetadata() {
+    return { sheets: Object.entries(this.ids).map(([title, sheetId]) => ({ properties: { title, sheetId } })) };
+  }
+
   async batchGet(ranges: string[]) {
-    this.calls.push({ kind: 'get', ranges });
+    this.calls.push({ kind: 'get', detail: ranges });
     return ranges.map((range) => {
-      const r = parse(this.names[range] ?? range);
-      const t = this.tabs[r.tab] ?? [];
+      const r = parse(range);
+      const t = this.tabs[r.tab];
+      if (!t) throw new Error(`Google Sheets error 400: Unable to parse range: ${range}`);
       const out: any[][] = [];
       for (let i = r.r1; i <= r.r2 && i < t.length; i++) {
         const row = [];
@@ -51,7 +58,7 @@ export class FakeSheet implements SheetsLike {
   }
 
   async batchUpdateValues(data: { range: string; values: any[][] }[], option: 'RAW' | 'USER_ENTERED' = 'RAW') {
-    this.calls.push({ kind: 'update', ranges: data.map((d) => d.range), option });
+    this.calls.push({ kind: 'update', detail: { ranges: data.map((d) => d.range), option } });
     for (const d of data) {
       const r = parse(d.range);
       const vals = d.values.map((row) => row.map((v) => (option === 'USER_ENTERED' && typeof v === 'string' && v.startsWith("'") ? v.slice(1) : v)));
@@ -62,24 +69,34 @@ export class FakeSheet implements SheetsLike {
       });
     }
   }
+
+  async batchUpdate(requests: any[]) {
+    this.calls.push({ kind: 'batch', detail: requests });
+    const tabOf = (id: number) => Object.keys(this.ids).find((k) => this.ids[k] === id)!;
+    for (const q of requests) {
+      if (q.insertDimension) {
+        const { sheetId, startIndex, endIndex } = q.insertDimension.range;
+        const tab = tabOf(sheetId);
+        const t = this.tabs[tab];
+        while (t.length < startIndex) t.push([]);
+        t.splice(startIndex, 0, ...Array.from({ length: endIndex - startIndex }, () => []));
+      } else if (q.repeatCell) {
+        const { sheetId, startRowIndex } = q.repeatCell.range;
+        ((this.fills[tabOf(sheetId)] ??= {})[startRowIndex] = q.repeatCell.cell.userEnteredFormat.backgroundColorStyle.rgbColor);
+      }
+    }
+    return [];
+  }
 }
 
-/** The SETTINGS lists as named ranges, like the live Sheet. */
-export function seedSettings(s: FakeSheet) {
-  const put = (name: string, colLetter: string, vals: any[]) => {
-    s.names[name] = `'SETTINGS'!${colLetter}1:${colLetter}${vals.length}`;
-    s.set('SETTINGS', `${colLetter}1`, vals.map((v) => [v]));
-  };
-  put('BranchList', 'A', ['SM Jazz', 'SM Manila', 'Studio']);
-  put('BranchType', 'B', ['Kiosk', 'Kiosk', 'Studio']);
-  put('BranchStatus', 'C', ['Active', 'Closed', 'Active']);
-  put('StaffName', 'D', ['Yenna', 'Che', 'Rea', 'Nickie']);
-  put('StaffRole', 'E', ['Kiosk sales', 'Kiosk sales', 'Baker', 'Kiosk sales']);
-  put('StaffStatus', 'F', ['Active', 'Active', 'Active', 'Inactive']);
-  put('FlavorCode', 'G', ['OG', 'AB', 'CS', 'SB']);
-  put('FlavorName', 'H', ['OG Mookies', 'Almond Butter', "Coffee S'mores", 'Strawberry Basque']);
-  put('FlavorStatus', 'I', ['Active', 'Active', 'Active', 'Retired']);
-  put('ProdName', 'J', ['Single', 'Box of 3', 'Box of 6', 'Box of 12', 'Water']);
-  put('ProdPcs', 'K', [1, 3, 6, 12, 0]);
-  put('PriceWalkin', 'L', [85, 240, 460, 880, 30]);
+export const IE_HEADER = ['DATE', 'Month', 'Category', 'Description', 'Staff', 3, 6, 12,
+  'OG', 'AB', 'CS', 'BN', 'MM', 'CC', 'KK', 'HN', 'WATER', ' Income', ' Expense', 'Account Balance'];
+
+/** Income & Expense laid out like Maan's tab (row 1 group labels, row 2 headers). */
+export function seedIncomeExpense(s: FakeSheet) {
+  s.ids['Income & Expense'] = 279240159;
+  s.ids['Kiosk form log'] = 777000111;
+  s.set('Income & Expense', 'F1', [['PACK', '', '', 'FLAVOR']]);
+  s.set('Income & Expense', 'A2', [IE_HEADER]);
+  s.set('Kiosk form log', 'A1', [['Submitted', 'Report ID', 'Date']]);
 }

@@ -286,7 +286,7 @@ function send() {
       formBuilt = false;
       $('viewForm').innerHTML = '<section class="card done"><h3>Report sent ✓</h3><p>' + esc(r.branch) + ', ' + esc(niceDate(r.date)) +
         '</p><p>Total sales <b>' + peso(t.total) + '</b></p>' +
-        (x.b.duplicate ? '<p class="bad">A report for this day already exists. Maan will keep one.</p>' : '') +
+        (x.b.duplicate ? '<p class="bad">This kiosk and day already had a report, so this one went in as an extra row. Maan will check it.</p>' : '') +
         '<p class="hint">Reference ' + esc(x.b.id) + '</p><p><button class="btn small ghost" type="button" id="again">Start a new report</button></p></section>';
       $('again').addEventListener('click', function () { location.reload(); });
     })

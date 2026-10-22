@@ -1,0 +1,19 @@
+{
+  "name": "mookies-kiosk",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Mookies kiosk end-of-shift report: a small Cloudflare Worker that writes reports into the accounting Google Sheet and posts approved ones to LEDGER.",
+  "engines": { "node": ">=20.11" },
+  "scripts": {
+    "dev": "wrangler dev",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "deploy": "wrangler deploy"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.0",
+    "vitest": "3.2.7",
+    "wrangler": "4.150.0"
+  }
+}

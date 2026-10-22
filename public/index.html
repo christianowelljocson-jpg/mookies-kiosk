@@ -1,0 +1,311 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<title>Mookies Kiosk</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='14' fill='%23D9661A'/%3E%3Ccircle cx='11' cy='12' r='2.2' fill='%234E342E'/%3E%3Ccircle cx='20' cy='10' r='1.8' fill='%234E342E'/%3E%3Ccircle cx='19' cy='20' r='2.4' fill='%234E342E'/%3E%3Ccircle cx='10' cy='20' r='1.6' fill='%234E342E'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Figtree:wght@400;500;600;700&display=swap">
+<style>
+/* Layout: one phone-width column; sticky brown header with tabs; cards per step; fixed send bar. */
+:root {
+  --bg: #FBF5EC; --surface: #FFFFFF; --ink: #2B1D17; --muted: #7A6A60; --line: #E9DDCD;
+  --brand: #4E342E; --brand-ink: #FFF6EA; --accent: #D9661A; --accent-ink: #FFFFFF;
+  --good: #2E7D32; --good-bg: #E5F2E3; --bad: #B3261E; --bad-bg: #FBE7E4; --warn: #8A5A00; --warn-bg: #FFF1D1;
+  --input: #FFFFFF; --input-line: #D9CBB8;
+  --display: "Bricolage Grotesque", "Trebuchet MS", system-ui, sans-serif;
+  --body: "Figtree", system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #1C1512; --surface: #271E1A; --ink: #F3E9DE; --muted: #B3A396; --line: #3E312A;
+  --brand: #3A2722; --brand-ink: #FFF1E0; --accent: #F08A3E; --accent-ink: #1C1512;
+  --good: #8BD08F; --good-bg: #1F3321; --bad: #FF9A8F; --bad-bg: #3D1F1C; --warn: #F4C66B; --warn-bg: #3A2E14;
+  --input: #1F1815; --input-line: #4D3E35; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #1C1512; --surface: #271E1A; --ink: #F3E9DE; --muted: #B3A396; --line: #3E312A;
+  --brand: #3A2722; --brand-ink: #FFF1E0; --accent: #F08A3E; --accent-ink: #1C1512;
+  --good: #8BD08F; --good-bg: #1F3321; --bad: #FF9A8F; --bad-bg: #3D1F1C; --warn: #F4C66B; --warn-bg: #3A2E14;
+  --input: #1F1815; --input-line: #4D3E35; color-scheme: dark }
+* { box-sizing: border-box; }
+html { padding-top: env(safe-area-inset-top, 0px); }
+body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--body); font-size: 16px; line-height: 1.4; }
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--brand); }
+header { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: var(--brand); color: var(--brand-ink);
+  padding-block: 12px 0; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+.hwrap { max-width: 620px; margin: 0 auto; }
+header h1 { margin: 0; font-family: var(--display); font-weight: 800; font-size: 22px; letter-spacing: -.01em; }
+header h1 span { color: var(--accent); }
+header p { margin: 2px 0 10px; font-size: 13px; opacity: .8; }
+nav { display: flex; gap: 4px; }
+nav button { flex: 0 0 auto; background: transparent; color: var(--brand-ink); border: 0; padding: 10px 14px; font: 600 15px var(--body);
+  border-radius: 10px 10px 0 0; opacity: .75; cursor: pointer; }
+nav button.on { background: var(--bg); color: var(--ink); opacity: 1; }
+nav .count { display: inline-block; min-width: 20px; padding: 0 6px; margin-left: 6px; border-radius: 10px; background: var(--accent); color: var(--accent-ink); font-size: 12px; line-height: 20px; text-align: center; }
+main { max-width: 620px; margin: 0 auto; padding-block: 8px 140px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+section.card { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 14px; margin: 12px 0; }
+h2 { font: 700 13px var(--body); letter-spacing: .08em; text-transform: uppercase; color: var(--accent); margin: 0 0 10px; }
+h3 { font-family: var(--display); font-weight: 600; font-size: 18px; margin: 0; }
+label { display: block; font-size: 13px; color: var(--muted); margin: 8px 0 4px; }
+input, select, textarea { width: 100%; font: 17px var(--body); color: var(--ink); padding: 10px; border: 1px solid var(--input-line); border-radius: 9px; background: var(--input); }
+input:focus-visible, select:focus-visible, textarea:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+input[type=number] { text-align: center; padding: 10px 1px; font-variant-numeric: tabular-nums; }
+.row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.row2 > div { min-width: 0; }
+table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+th { font-size: 11px; color: var(--muted); font-weight: 500; padding: 2px; text-align: center; }
+td { padding: 3px 2px; }
+td.name { font-weight: 700; font-size: 14px; width: 14%; }
+.boxes td.name { width: 30%; }
+.boxes td.hint { font-size: 12.5px; padding-left: 10px; }
+td.chk, th.chk { width: 12%; text-align: center; font-size: 13px; }
+.ok { color: var(--good); font-weight: 700; }
+.bad { color: var(--bad); font-weight: 700; }
+.sum { display: flex; justify-content: space-between; gap: 8px; padding: 7px 0; border-top: 1px dashed var(--line); font-size: 15px; }
+.sum b { font-size: 17px; font-variant-numeric: tabular-nums; }
+.hint { font-size: 12.5px; color: var(--muted); margin: 6px 0 0; }
+.tabs { display: flex; gap: 6px; margin-bottom: 8px; }
+.tabs button { flex: 1; font: 600 14px var(--body); padding: 8px; background: var(--bg); color: var(--ink); border: 1px solid var(--line); border-radius: 9px; cursor: pointer; }
+.tabs button.on { background: var(--brand); color: var(--brand-ink); border-color: var(--brand); }
+.bar { position: fixed; left: 0; right: 0; bottom: 0; background: var(--surface); border-top: 1px solid var(--line);
+  padding-block: 10px calc(10px + env(safe-area-inset-bottom, 0px));
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+.bar .inner { max-width: 620px; margin: 0 auto; }
+.btn { display: block; width: 100%; font: 700 18px var(--body); padding: 14px; border: 0; border-radius: 11px; background: var(--accent); color: var(--accent-ink); cursor: pointer; }
+.btn:disabled { opacity: .5; cursor: default; }
+.btn.small { display: inline-block; width: auto; font-size: 14px; padding: 9px 14px; border-radius: 9px; }
+.btn.ghost { background: transparent; color: var(--ink); border: 1px solid var(--input-line); }
+.btn.danger { background: transparent; color: var(--bad); border: 1px solid var(--bad); }
+#msg { font-size: 14px; text-align: center; margin-bottom: 8px; }
+#msg:empty { display: none; }
+.done { text-align: center; padding: 36px 8px; }
+.done h3 { color: var(--good); font-size: 26px; }
+.chip { display: inline-block; font: 700 11.5px var(--body); letter-spacing: .04em; text-transform: uppercase; padding: 3px 8px; border-radius: 20px; }
+.chip.Pending, .chip.Posting { background: var(--warn-bg); color: var(--warn); }
+.chip.Approved { background: var(--good-bg); color: var(--good); }
+.chip.Rejected { background: var(--bad-bg); color: var(--bad); }
+.rep { border: 1px solid var(--line); border-radius: 12px; padding: 12px; margin: 10px 0; background: var(--surface); }
+.rep .top { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
+.rep .meta { font-size: 13px; color: var(--muted); }
+.rep .money { font-family: var(--display); font-weight: 600; font-size: 20px; font-variant-numeric: tabular-nums; }
+.flags { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
+.flag { font-size: 12.5px; padding: 3px 8px; border-radius: 6px; background: var(--good-bg); color: var(--good); }
+.flag.x { background: var(--bad-bg); color: var(--bad); }
+.actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+details summary { cursor: pointer; font-size: 14px; color: var(--muted); margin-top: 6px; }
+.detail { overflow-x: auto; }
+.detail table { table-layout: auto; font-size: 13px; font-variant-numeric: tabular-nums; }
+.detail td, .detail th { padding: 4px 6px; border-bottom: 1px solid var(--line); text-align: right; white-space: nowrap; }
+.detail td:first-child, .detail th:first-child { text-align: left; }
+.empty { text-align: center; color: var(--muted); padding: 22px 8px; }
+.note { background: var(--warn-bg); color: var(--warn); border-radius: 10px; padding: 10px 12px; font-size: 14px; margin: 12px 0; }
+.err { background: var(--bad-bg); color: var(--bad); border-radius: 10px; padding: 10px 12px; font-size: 14px; margin: 8px 0; }
+.list { display: grid; gap: 6px; }
+.person { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: 15px; }
+@media (prefers-reduced-motion: no-preference) { .btn, nav button, .tabs button { transition: background .15s, opacity .15s; } }
+</style>
+</head>
+<body>
+<header>
+  <div class="hwrap">
+    <h1>Mookies <span>Kiosk</span></h1>
+    <p>End-of-shift report. Send once at closing.</p>
+  </div>
+  <div style="height:10px"></div>
+</header>
+<main>
+  <div id="viewForm"><section class="card"><p class="empty">Loading the form…</p></section></div>
+</main>
+<div class="bar" id="bar" hidden>
+  <div class="inner"><div id="msg"></div><button class="btn" id="send" type="button">Send report</button></div>
+</div>
+
+<script>
+(function () {
+'use strict';
+var config = null, formBuilt = false;
+
+function $(id) { return document.getElementById(id); }
+function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+  return {'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]; }); }
+function num(v) { var n = Number(String(v == null ? '' : v).replace(/[₱,\s]/g, '')); return isFinite(n) ? n : 0; }
+function n(id) { var el = $(id); return el ? num(el.value) : 0; }
+function peso(x) { return '₱' + Math.round(x).toLocaleString('en-PH'); }
+function niceDate(s) {
+  var p = String(s).split('-'); if (p.length !== 3) return s;
+  return new Date(+p[0], +p[1] - 1, +p[2]).toLocaleDateString('en-PH', {weekday: 'short', month: 'short', day: 'numeric'});
+}
+function numIn(id) { return '<input type="number" inputmode="numeric" min="0" step="1" id="' + id + '" aria-label="' + id + '">'; }
+function moneyIn(id, lab) { return '<input type="number" inputmode="decimal" min="0" step="0.01" id="' + id + '" aria-label="' + esc(lab) + '">'; }
+
+function totals(r) {
+  var t = {flavSold: 0, boxSold: 0, expected: 0, total: 0, badLines: 0};
+  r.lines.forEach(function (l) {
+    t.flavSold += l.sold;
+    if (l.start + l.delivered - l.free - l.sold - l.remain !== 0) t.badLines++;
+  });
+  config.products.forEach(function (p, i) { t.boxSold += num(r.boxes[i]) * p.pcs; t.expected += num(r.boxes[i]) * p.walkin; });
+  t.expected -= r.discount;
+  t.total = r.cash + r.gcash + r.card + r.bank + r.grabAmt + r.onlineAmt;
+  // Grab and online prices differ from walk-in, so the money check only counts on all-walk-in days.
+  t.diff = t.total - t.expected;
+  t.diffBad = Math.abs(t.diff) >= 1 && !r.grabAmt && !r.onlineAmt;
+  return t;
+}
+
+function build() {
+  var opts = function (arr, blank) {
+    return (blank ? '<option value="">' + blank + '</option>' : '') + arr.map(function (x) { return '<option>' + esc(x) + '</option>'; }).join('');
+  };
+  var h = '';
+  h += '<section class="card"><h2>Shift</h2><div class="row2">' +
+       '<div><label for="date">Date</label><input type="date" id="date" value="' + esc(config.today) + '"></div>' +
+       '<div><label for="branch">Kiosk</label><select id="branch">' + opts(config.kiosks) + '</select></div></div>' +
+       '<div class="row2"><div><label for="staff1">Staff on duty</label><select id="staff1">' + opts(config.staff.concat(['Other']), 'Pick name') +
+       '</select><input id="staff1o" placeholder="Type name" hidden style="margin-top:6px"></div>' +
+       '<div><label for="staff2">Second staff (if any)</label><select id="staff2">' + opts(config.staff.concat(['Other']), 'None') +
+       '</select><input id="staff2o" placeholder="Type name" hidden style="margin-top:6px"></div></div></section>';
+
+  h += '<section class="card"><h2>Cookies per flavor</h2><p class="hint" id="lastinfo"></p><table><tr><th></th><th>Start</th><th>Delivered</th>' +
+       '<th>Free taste</th><th>Sold</th><th>Left</th><th class="chk">Check</th></tr>';
+  config.flavors.forEach(function (f) {
+    h += '<tr><td class="name" title="' + esc(f.name) + '">' + esc(f.code) + '</td><td>' + numIn('st_' + f.code) + '</td><td>' +
+         numIn('dl_' + f.code) + '</td><td>' + numIn('fr_' + f.code) + '</td><td>' + numIn('so_' + f.code) + '</td><td>' +
+         numIn('re_' + f.code) + '</td><td class="chk" id="ck_' + f.code + '"></td></tr>';
+  });
+  h += '</table><div class="sum"><span>Cookies sold (flavors)</span><b id="flavSold">0</b></div>' +
+       '<p class="hint">Start is filled from the last report\'s Left. Type cookies that arrived today in Delivered. ' +
+       'Check shows ✓ when Start + Delivered − Free − Sold − Left = 0.</p></section>';
+
+  h += '<section class="card"><h2>Boxes sold</h2><table class="boxes"><tr><th></th><th>Sold</th><th></th></tr>';
+  config.products.forEach(function (p, i) {
+    h += '<tr><td class="name">' + esc(p.name) + '</td><td>' + numIn('bx_' + i) + '</td><td class="hint">' +
+         (p.pcs ? p.pcs + ' pc' + (p.pcs > 1 ? 's' : '') + ' · ' : '') + peso(p.walkin) + '</td></tr>';
+  });
+  h += '</table><div class="sum"><span>Cookies sold (boxes)</span><b id="boxSold">0</b></div>' +
+       '<p class="hint">Type how many of each box were sold, all channels together. Extra pieces added to a box (3+1, 6+2, 12+4) go in Single.</p></section>';
+
+  h += '<section class="card"><h2>Total sales</h2><div class="row2">' +
+       '<div><label for="cash">Cash</label>' + moneyIn('cash', 'Cash') + '</div><div><label for="gcash">GCash</label>' + moneyIn('gcash', 'GCash') + '</div>' +
+       '<div><label for="card">Card</label>' + moneyIn('card', 'Card') + '</div><div><label for="bank">Bank transfer</label>' + moneyIn('bank', 'Bank transfer') + '</div>' +
+       '<div><label for="grabAmt">Grab / Foodpanda total</label>' + moneyIn('grabAmt', 'Grab total') + '</div>' +
+       '<div><label for="onlineAmt">Online orders total</label>' + moneyIn('onlineAmt', 'Online total') + '</div></div>' +
+       '<label for="discount">Walk-in discounts given (PWD / senior / promo)</label>' + moneyIn('discount', 'Discounts') +
+       '<div class="sum"><span>Total sales</span><b id="total">₱0</b></div>' +
+       '<div class="sum"><span>Boxes at walk-in prices − discounts</span><b id="expected">₱0</b></div>' +
+       '<div class="sum"><span>Difference</span><b id="diff">₱0</b></div>' +
+       '<p class="hint">Grab and online prices are different, so a difference is normal on days with Grab or online sales.</p></section>';
+
+  h += '<section class="card"><h2>Notes</h2><textarea id="notes" rows="3" aria-label="Notes" placeholder="Anything the owner should know"></textarea></section>';
+  var v = $('viewForm');
+  v.innerHTML = h;
+  formBuilt = true;
+  $('bar').hidden = false;
+  $('branch').addEventListener('change', prefill);
+  ['staff1', 'staff2'].forEach(function (id) {
+    $(id).addEventListener('change', function () { $(id + 'o').hidden = this.value !== 'Other'; });
+  });
+  v.addEventListener('input', recalc);
+  prefill();
+}
+
+function prefill() {
+  var last = config.last[$('branch').value] || {date: null, counts: {}};
+  config.flavors.forEach(function (f) {
+    var el = $('st_' + f.code);
+    if (el.getAttribute('data-touched') === '1') return;
+    el.value = last.counts[f.code] != null ? last.counts[f.code] : '';
+  });
+  $('lastinfo').textContent = last.date ? 'Start counts copied from the ' + niceDate(last.date) + ' report.'
+                                        : 'No earlier report found. Type the start counts.';
+  recalc();
+}
+
+function report() {
+  var r = {lines: [], boxes: config.products.map(function (p, i) { return n('bx_' + i); })};
+  ['cash', 'gcash', 'card', 'bank', 'grabAmt', 'onlineAmt', 'discount'].forEach(function (k) { r[k] = n(k); });
+  config.flavors.forEach(function (f) {
+    r.lines.push({code: f.code, start: n('st_' + f.code), delivered: n('dl_' + f.code), free: n('fr_' + f.code),
+                  sold: n('so_' + f.code), remain: n('re_' + f.code)});
+  });
+  return r;
+}
+
+function recalc(e) {
+  if (!formBuilt) return null;
+  if (e && e.target && /^st_/.test(e.target.id)) e.target.setAttribute('data-touched', '1');
+  config.flavors.forEach(function (f) {
+    var c = f.code;
+    var any = ['st_', 'dl_', 'fr_', 'so_', 're_'].some(function (p) { return $(p + c).value !== ''; });
+    var u = n('st_' + c) + n('dl_' + c) - n('fr_' + c) - n('so_' + c) - n('re_' + c);
+    var ck = $('ck_' + c);
+    if (!any) { ck.textContent = ''; ck.className = 'chk'; }
+    else if (u === 0) { ck.textContent = '✓'; ck.className = 'chk ok'; }
+    else { ck.textContent = (u > 0 ? '+' : '') + u; ck.className = 'chk bad'; }
+  });
+  var t = totals(report());
+  $('flavSold').textContent = t.flavSold;
+  var bs = $('boxSold');
+  bs.textContent = t.boxSold + (t.boxSold !== t.flavSold ? '  (≠ flavors)' : '');
+  bs.className = t.boxSold !== t.flavSold ? 'bad' : '';
+  $('total').textContent = peso(t.total);
+  $('expected').textContent = peso(t.expected);
+  var de = $('diff');
+  de.textContent = (t.diff > 0 ? '+' : '') + peso(t.diff);
+  de.className = t.diffBad ? 'bad' : (Math.abs(t.diff) >= 1 ? '' : 'ok');
+  return t;
+}
+
+function staffName(id) { var v = $(id).value; return v === 'Other' ? $(id + 'o').value.trim() : v; }
+
+function send() {
+  var msg = $('msg'), btn = $('send');
+  var t = recalc(), r = report();
+  r.date = $('date').value; r.branch = $('branch').value;
+  r.staff1 = staffName('staff1'); r.staff2 = staffName('staff2'); r.notes = $('notes').value.trim();
+  if (!r.date) { msg.innerHTML = '<span class="bad">Pick the date.</span>'; return; }
+  if (!r.staff1) { msg.innerHTML = '<span class="bad">Pick or type the staff on duty.</span>'; return; }
+  var warn = [];
+  if (t.badLines) warn.push(t.badLines + ' flavor line(s) do not add up');
+  if (t.boxSold !== t.flavSold) warn.push('boxes (' + t.boxSold + ') and flavors (' + t.flavSold + ') differ');
+  if (t.diffBad) warn.push('sales differ from the boxes by ' + peso(t.diff));
+  if (warn.length && btn.getAttribute('data-confirm') !== '1') {
+    msg.innerHTML = '<span class="bad">Check: ' + esc(warn.join('; ')) + '. Tap Send again to send anyway.</span>';
+    btn.setAttribute('data-confirm', '1');
+    return;
+  }
+  btn.disabled = true;
+  msg.textContent = 'Sending…';
+  fetch('/api/report', {method: 'POST', headers: {'content-type': 'application/json'}, body: JSON.stringify(r)})
+    .then(function (res) { return res.json().catch(function () { return {}; }).then(function (b) { return {ok: res.ok, b: b}; }); })
+    .then(function (x) {
+      if (!x.ok || !x.b.ok) throw new Error(x.b.error || 'Not sent. Check the internet connection and tap Send again.');
+      $('bar').hidden = true;
+      formBuilt = false;
+      $('viewForm').innerHTML = '<section class="card done"><h3>Report sent ✓</h3><p>' + esc(r.branch) + ', ' + esc(niceDate(r.date)) +
+        '</p><p>Total sales <b>' + peso(t.total) + '</b></p>' +
+        (x.b.duplicate ? '<p class="bad">A report for this day already exists. Maan will keep one.</p>' : '') +
+        '<p class="hint">Reference ' + esc(x.b.id) + '</p><p><button class="btn small ghost" type="button" id="again">Start a new report</button></p></section>';
+      $('again').addEventListener('click', function () { location.reload(); });
+    })
+    .catch(function (e) {
+      btn.disabled = false;
+      btn.removeAttribute('data-confirm');
+      msg.innerHTML = '<span class="bad">' + esc(e.message) + '</span>';
+    });
+}
+
+$('send').addEventListener('click', send);
+fetch('/api/config', {cache: 'no-store'})
+  .then(function (res) { return res.json().then(function (b) { if (!res.ok) throw new Error(b.error || 'Could not load the form.'); return b; }); })
+  .then(function (c) { config = c; build(); })
+  .catch(function (e) {
+    $('viewForm').innerHTML = '<section class="card"><p class="empty">' + esc(e.message || 'Could not load the form.') +
+      '</p><p style="text-align:center"><button class="btn small ghost" type="button" onclick="location.reload()">Try again</button></p></section>';
+  });
+})();
+</script>
+</body>
+</html>

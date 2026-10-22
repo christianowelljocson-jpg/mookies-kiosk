@@ -1,0 +1,28 @@
+// Mookies kiosk report Worker. No secrets live here.
+// GOOGLE_PRIVATE_KEY is a Worker secret (the same service-account key the
+// website uses): npx wrangler secret put GOOGLE_PRIVATE_KEY
+// The deploy workflow (.github/workflows/deploy.yml) sets it from the GitHub
+// secret of the same name.
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "mookies-kiosk",
+  "main": "./src/worker.ts",
+  "compatibility_date": "2026-06-01",
+  "assets": { "directory": "./public", "binding": "ASSETS" },
+  "observability": { "enabled": true },
+  // kiosk.mookiesoatmealcookies.com (Cloudflare creates the DNS record on the
+  // first deploy). The workers.dev address stays on as a backup link.
+  "workers_dev": true,
+  "routes": [{ "pattern": "kiosk.mookiesoatmealcookies.com", "custom_domain": true }],
+  "vars": {
+    "ENVIRONMENT": "production",
+    // Mookies_Operations_and_Finance (the accounting Sheet). It must be shared
+    // with the service account below as Editor.
+    "SHEET_ID": "14Ycph3xUAYxuN8qnh3icYeNnhtrwi8w9XO29nA6q9Sc",
+    "GOOGLE_SERVICE_ACCOUNT_EMAIL": "mookies-orders@mookies-orders.iam.gserviceaccount.com",
+    // "on": every 5 minutes, approved kiosk reports are posted to LEDGER.
+    // Anything else stops that (the form still works).
+    "SYNC_MODE": "on"
+  },
+  "triggers": { "crons": ["*/5 * * * *"] }
+}

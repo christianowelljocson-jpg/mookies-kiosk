@@ -27,7 +27,18 @@ export const SHEETS_SCOPE = 'https://www.googleapis.com/auth/spreadsheets';
  * @param {string} pem
  */
 export function normalizePrivateKey(pem) {
-  return String(pem).replace(/\\n/g, '\n').trim();
+  let text = String(pem).trim();
+  // Accept the whole service-account JSON file, or the value still wrapped in quotes.
+  if (text.startsWith('{')) {
+    try {
+      text = String(JSON.parse(text).private_key ?? '');
+    } catch {
+      /* fall through: reported as not a PEM key below */
+    }
+  } else if (/^["'].*["']$/s.test(text)) {
+    text = text.slice(1, -1);
+  }
+  return text.replace(/\\n/g, '\n').trim();
 }
 
 /** @param {string} pem @returns {ArrayBuffer} */

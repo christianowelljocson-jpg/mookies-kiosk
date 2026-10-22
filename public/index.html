@@ -281,7 +281,7 @@ function send() {
   fetch('/api/report', {method: 'POST', headers: {'content-type': 'application/json'}, body: JSON.stringify(r)})
     .then(function (res) { return res.json().catch(function () { return {}; }).then(function (b) { return {ok: res.ok, b: b}; }); })
     .then(function (x) {
-      if (!x.ok || !x.b.ok) throw new Error(x.b.error || 'Not sent. Check the internet connection and tap Send again.');
+      if (!x.ok || !x.b.ok) { var err = new Error(x.b.error || 'Not sent. Check the internet connection and tap Send again.'); err.detail = x.b.detail; throw err; }
       $('bar').hidden = true;
       formBuilt = false;
       $('viewForm').innerHTML = '<section class="card done"><h3>Report sent ✓</h3><p>' + esc(r.branch) + ', ' + esc(niceDate(r.date)) +
@@ -293,17 +293,17 @@ function send() {
     .catch(function (e) {
       btn.disabled = false;
       btn.removeAttribute('data-confirm');
-      msg.innerHTML = '<span class="bad">' + esc(e.message) + '</span>';
+      msg.innerHTML = '<span class="bad">' + esc(e.message) + '</span>' + (e.detail ? '<br><span class="hint">' + esc(e.detail) + '</span>' : '');
     });
 }
 
 $('send').addEventListener('click', send);
 fetch('/api/config', {cache: 'no-store'})
-  .then(function (res) { return res.json().then(function (b) { if (!res.ok) throw new Error(b.error || 'Could not load the form.'); return b; }); })
+  .then(function (res) { return res.json().then(function (b) { if (!res.ok) { var err = new Error(b.error || 'Could not load the form.'); err.detail = b.detail; throw err; } return b; }); })
   .then(function (c) { config = c; build(); })
   .catch(function (e) {
     $('viewForm').innerHTML = '<section class="card"><p class="empty">' + esc(e.message || 'Could not load the form.') +
-      '</p><p style="text-align:center"><button class="btn small ghost" type="button" onclick="location.reload()">Try again</button></p></section>';
+      '</p>' + (e.detail ? '<p class="hint" style="text-align:center">' + esc(e.detail) + '</p>' : '') + '<p style="text-align:center"><button class="btn small ghost" type="button" onclick="location.reload()">Try again</button></p></section>';
   });
 })();
 </script>

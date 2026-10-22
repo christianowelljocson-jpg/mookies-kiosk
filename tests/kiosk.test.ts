@@ -234,3 +234,15 @@ describe('API', () => {
     expect(res.status).toBe(403);
   });
 });
+
+describe('normalizePrivateKey', () => {
+  it('accepts a bare PEM, a quoted value with \\n, or the whole JSON key file', async () => {
+    const { normalizePrivateKey } = await import('../src/sheets/google-auth.js');
+    const pem = '-----BEGIN PRIVATE KEY-----\nAAAA\n-----END PRIVATE KEY-----';
+    const escaped = pem.replace(/\n/g, '\\n');
+    expect(normalizePrivateKey(pem)).toBe(pem);
+    expect(normalizePrivateKey(escaped)).toBe(pem);
+    expect(normalizePrivateKey(`"${escaped}"`)).toBe(pem);
+    expect(normalizePrivateKey(JSON.stringify({ type: 'service_account', private_key: pem }))).toBe(pem);
+  });
+});

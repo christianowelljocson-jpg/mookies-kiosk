@@ -75,8 +75,10 @@ export async function handleApi(request: Request, env: Env, deps: { client?: She
     return json({ error: 'Not found.' }, url.pathname.startsWith('/api/') ? 404 : 405);
   } catch (e) {
     if (e instanceof ReportError) return json({ error: e.message }, 400);
-    log('kiosk_api_failed', { path: url.pathname, error: e instanceof Error ? e.message : String(e) });
-    return json({ error: 'Google Sheets did not answer. Wait a minute and tap Send again.' }, 502);
+    const detail = e instanceof Error ? e.message : String(e);
+    log('kiosk_api_failed', { path: url.pathname, error: detail });
+    // detail never contains the key or token, only Google's error text, so it is safe to show for troubleshooting.
+    return json({ error: 'Google Sheets did not answer. Wait a minute and tap Send again.', detail }, 502);
   }
 }
 

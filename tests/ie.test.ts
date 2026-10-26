@@ -128,6 +128,13 @@ describe('submitReport', () => {
     expect(s.cell(IE, 'F5')).toBe('Yenna & Che');
   });
 
+  it('writes the staff name once when both picks are the same person', async () => {
+    const s = sheet();
+    await submit(s, { staff2: 'yenna' });
+    expect(s.cell(IE, 'F5')).toBe('Yenna');
+    expect(s.row(LOG, 2)[4]).toBe('Yenna');
+  });
+
   it('a later report for the same kiosk and day replaces the earlier one', async () => {
     const s = sheet();
     await submit(s);

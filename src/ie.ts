@@ -301,7 +301,11 @@ export async function submitReport(client: SheetsLike, r: Report, now: number) {
   const row = FIRST + idx;
   const width = L.balance + 1;
   const line: Cell[] = new Array(width).fill(null); // null = leave the cell as it is
-  const staff = [r.staff1, r.staff2].map((s) => str(s).trim()).filter(Boolean).join(' & ');
+  // The same person picked twice is written once.
+  const staff = [r.staff1, r.staff2]
+    .map((s) => str(s).trim())
+    .filter((s, i, all) => s && all.findIndex((t) => t.toLowerCase() === s.toLowerCase()) === i)
+    .join(' & ');
   if (inserted) {
     line[L.date] = day;
     line[L.month] = MONTHS[Number(r.date.slice(5, 7)) - 1];

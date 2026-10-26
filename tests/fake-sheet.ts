@@ -84,6 +84,9 @@ export class FakeSheet implements SheetsLike {
         }
         while (t.length < startIndex) t.push([]);
         t.splice(startIndex, 0, ...Array.from({ length: endIndex - startIndex }, () => []));
+      } else if (q.deleteDimension) {
+        const { sheetId, startIndex, endIndex } = q.deleteDimension.range;
+        this.tabs[tabOf(sheetId)].splice(startIndex, endIndex - startIndex);
       } else if (q.setDataValidation) {
         const { sheetId, startRowIndex, startColumnIndex } = q.setDataValidation.range;
         (this.checkboxes[tabOf(sheetId)] ??= []).push(`${startRowIndex}:${startColumnIndex}`);

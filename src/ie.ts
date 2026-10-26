@@ -16,7 +16,9 @@
 // column for yet gets a new one just before "Notes".
 //
 //   readConfig   - lists for the form, and the last "Left" per flavor from the log tab.
-//   submitReport - fills that day's kiosk row (or inserts one in date order),
+//   submitReport - fills that day's kiosk row (or inserts one in date order).
+//                  A later report for the same kiosk and date replaces the
+//                  earlier one, both in Income & Expense and in the log (Ian, 2026-10-26).
 //                  puts an unticked Approved checkbox on it, and logs the full
 //                  report in "Kiosk form log". A conditional format on the tab
 //                  shows the row yellow until Maan ticks the box.
@@ -267,9 +269,14 @@ export async function submitReport(client: SheetsLike, r: Report, now: number) {
     !!v && v[L.date] === day && str(v[L.description]).trim().toUpperCase().startsWith(kiosk.prefix);
   const empty = (v: Cell[]) => blank(v[L.income]) && L.flavors.every((f) => blank(v[f.col])) && blank(v[L.water]);
 
-  // The pre-typed row for this kiosk and day, if it is still empty.
-  let idx = rows.findIndex((v) => ours(v) && empty(v));
-  const duplicate = rows.some((v) => ours(v) && !empty(v));
+  // A row the form already wrote for this kiosk and day (it has an Approved
+  // checkbox) is replaced; otherwise the pre-typed row, if it is still empty.
+  let idx = -1;
+  rows.forEach((v, i) => {
+    if (ours(v) && !empty(v) && typeof v[L.approved] === 'boolean') idx = i;
+  });
+  const duplicate = idx >= 0;
+  if (idx < 0) idx = rows.findIndex((v) => ours(v) && empty(v));
   const requests: object[] = [];
   const meta = await client.getMetadata('sheets.properties(sheetId,title)');
   const sheetId = meta?.sheets?.find((s: any) => s.properties?.title === IE)?.properties?.sheetId;
@@ -340,15 +347,34 @@ export async function submitReport(client: SheetsLike, r: Report, now: number) {
 }
 
 async function logReport(client: SheetsLike, r: Report, x: { id: string; stamp: string; row: number; staff: string; day: number }) {
-  const [head, log] = await client.batchGet([`${q(LOG)}!A1:AZ1`, `${q(LOG)}!A2:A${LOG_LAST}`], { valueRenderOption: 'UNFORMATTED_VALUE' });
+  const [head, log] = await client.batchGet([`${q(LOG)}!A1:AZ1`, `${q(LOG)}!A2:D${LOG_LAST}`], { valueRenderOption: 'UNFORMATTED_VALUE' });
   let L = readLogLayout(head.values?.[0] ?? []);
+  const logRows = log.values ?? [];
+  let sheetId: number | undefined;
+  const logSheetId = async () => {
+    if (sheetId != null) return sheetId;
+    const meta = await client.getMetadata('sheets.properties(sheetId,title)');
+    sheetId = meta?.sheets?.find((s: any) => s.properties?.title === LOG)?.properties?.sheetId;
+    if (sheetId == null) throw new Error(`The "${LOG}" tab was not found.`);
+    return sheetId;
+  };
+
+  // Earlier reports for this kiosk and date: the first is overwritten, any others are removed.
+  const same = logRows.map((v, i) => (v && v[2] === x.day && str(v[3]) === r.branch ? i : -1)).filter((i) => i >= 0);
+  let at = 2 + logRows.length;
+  if (same.length) {
+    at = 2 + same[0];
+    const extra = same.slice(1).reverse();
+    if (extra.length) {
+      const id = await logSheetId();
+      await client.batchUpdate(extra.map((i) => ({ deleteDimension: { range: { sheetId: id, dimension: 'ROWS', startIndex: 1 + i, endIndex: 2 + i } } })));
+    }
+  }
 
   // A flavor the log has no column for yet gets one just before Notes.
   const missing = [...new Set(r.lines.map((l) => l.code))].filter((c) => !(c in L.flavors));
   if (missing.length) {
-    const meta = await client.getMetadata('sheets.properties(sheetId,title)');
-    const sheetId = meta?.sheets?.find((s: any) => s.properties?.title === LOG)?.properties?.sheetId;
-    if (sheetId == null) throw new Error(`The "${LOG}" tab was not found.`);
+    const sheetId = await logSheetId();
     await client.batchUpdate([
       { insertDimension: { range: { sheetId, dimension: 'COLUMNS', startIndex: L.notes, endIndex: L.notes + missing.length }, inheritFromBefore: true } },
     ]);
@@ -361,7 +387,6 @@ async function logReport(client: SheetsLike, r: Report, x: { id: string; stamp: 
     L = readLogLayout(h);
   }
 
-  const at = 2 + (log.values ?? []).length;
   const left: Record<string, number> = {};
   for (const l of r.lines) left[l.code] = l.remain;
   const total = PAY.reduce((s, k) => s + r[k], 0);

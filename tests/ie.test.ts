@@ -128,16 +128,43 @@ describe('submitReport', () => {
     expect(s.cell(IE, 'F5')).toBe('Yenna & Che');
   });
 
-  it('adds a second row under the day when the kiosk row is already filled', async () => {
+  it('a later report for the same kiosk and day replaces the earlier one', async () => {
     const s = sheet();
     await submit(s);
-    const res = await submit(s, { cash: 100, gcash: 0, grabAmt: 0, staff1: 'Nash' });
-    expect(res).toMatchObject({ row: 7, duplicate: true, inserted: true });
-    const r = s.row(IE, 7);
-    expect(r.slice(0, 6)).toEqual([false, d('2026-10-22'), 'Oct', 'Sales', 'SM JAZZ KIOSK DAILY SALES - Nash ', 'Nash']);
+    s.set(IE, 'A5', [[true]]); // Maan had already approved it
+    const res = await submit(s, { cash: 100, gcash: 0, grabAmt: 0, staff1: 'Nash', lines: [{ code: 'OG', start: 10, delivered: 0, free: 0, sold: 1, remain: 9 }] });
+    expect(res).toMatchObject({ row: 5, duplicate: true, inserted: false });
+    const r = s.row(IE, 5);
+    expect(r[0]).toBe(false); // back to unapproved for Maan to check again
+    expect(r[5]).toBe('Nash');
+    expect(r[9]).toBe(1); // OG
+    expect(r[16]).toBe(''); // HN cleared
     expect(r[18]).toBe('=100+0+0+0+0+0');
-    expect(r[20]).toBe('=S7-T7');
-    expect(s.row(IE, 8)[4]).toBe('SM JAZZ KIOSK DAILY SALES - NASH (reliever) '); // Oct 23 moved down
+    expect(s.row(IE, 6)[4]).toBe('SM MANILA KIOSK DAILY SALES - Che '); // no extra row
+    expect(s.row(LOG, 2)[4]).toBe('Nash'); // log row replaced in place
+    expect(s.row(LOG, 2)[19]).toBe('10+0-0-1=9');
+    expect(s.row(LOG, 2)[26]).toBe('');
+    expect(s.row(LOG, 3)).toEqual([]);
+    expect((await readConfig(s, NOW)).last['SM Jazz'].counts).toEqual({ OG: 9 });
+  });
+
+  it('removes extra log rows for the same kiosk and day', async () => {
+    const s = sheet();
+    await submit(s);
+    await submit(s, { date: '2026-10-23' });
+    s.set(LOG, 'A4', [s.row(LOG, 2).slice()]); // an old duplicate of Oct 22
+    await submit(s, { staff1: 'Che' });
+    expect(s.row(LOG, 2)[4]).toBe('Che');
+    expect(s.row(LOG, 3)[2]).toBe(d('2026-10-23'));
+    expect(s.row(LOG, 4)).toEqual([]);
+  });
+
+  it('adds a new row when the day only has a row Maan typed in by hand', async () => {
+    const s = sheet();
+    s.set(IE, 'J5', [[5]]); // filled by hand, no Approved checkbox
+    const res = await submit(s);
+    expect(res).toMatchObject({ row: 7, inserted: true });
+    expect(s.row(IE, 5)[9]).toBe(5);
   });
 
   it('adds a row in date order when no row was typed for that day', async () => {

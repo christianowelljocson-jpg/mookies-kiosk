@@ -73,6 +73,12 @@ describe('readConfig', () => {
     expect(cfg.last['SM Jazz']).toEqual({ date: '2026-10-22', counts: { OG: 7, HN: 1 } });
     expect(cfg.last['SM Manila']).toEqual({ date: null, counts: {} });
   });
+  it('uses a Left count Maan corrected in the log', async () => {
+    const s = sheet();
+    await submit(s);
+    s.set(LOG, 'T2', [['10+6-1-8=6']]);
+    expect((await readConfig(s, NOW)).last['SM Jazz'].counts).toEqual({ OG: 6, HN: 1 });
+  });
 });
 
 describe('submitReport', () => {
@@ -86,7 +92,7 @@ describe('submitReport', () => {
     expect(r[16]).toBe(3); // HN
     expect(r[10]).toBe(''); // AB not sold
     expect(r[17]).toBe(4); // water
-    expect(r[18]).toBe('=1200+800+0+0+600+0'); // Income in the form's order
+    expect(r[18]).toBe(incomeFormula('SMJAZZ-20261022-183000')); // Income looks the report up in the log
     expect(r[19]).toBe(''); // Expense untouched
     expect(r[20]).toBe('=S5-T5'); // Balance untouched
     expect(s.checkboxes[IE]).toEqual(['4:0']); // unticked Approved box: yellow until Maan ticks it
@@ -99,7 +105,8 @@ describe('submitReport', () => {
     const { id } = await submit(s);
     expect(id).toBe('SMJAZZ-20261022-183000');
     const log = s.row(LOG, 2);
-    expect(log.slice(0, 7)).toEqual(['2026-10-22 18:30', id, d('2026-10-22'), 'SM Jazz', 'Yenna', 5, 2600]);
+    expect(log.slice(0, 7)).toEqual(['2026-10-22 18:30', id, d('2026-10-22'), 'SM Jazz', 'Yenna', 5, '=SUM(H2:M2)']);
+    expect(log.slice(7, 13)).toEqual([1200, 800, '', '', 600, '']);
     expect(log[13]).toBe(40); // discount
     expect(log.slice(14, 19)).toEqual([3, 2, 1, '', 4]);
     expect(log[19]).toBe('10+6-1-8=7'); // OG
@@ -146,7 +153,7 @@ describe('submitReport', () => {
     expect(r[5]).toBe('Nash');
     expect(r[9]).toBe(1); // OG
     expect(r[16]).toBe(''); // HN cleared
-    expect(r[18]).toBe('=100+0+0+0+0+0');
+    expect(r[18]).toBe(incomeFormula(res.id));
     expect(s.row(IE, 6)[4]).toBe('SM MANILA KIOSK DAILY SALES - Che '); // no extra row
     expect(s.row(LOG, 2)[4]).toBe('Nash'); // log row replaced in place
     expect(s.row(LOG, 2)[19]).toBe('10+0-0-1=9');
@@ -212,7 +219,7 @@ describe('parseReport', () => {
     const cfg = await readConfig(sheet(), NOW);
     const r = parseReport(body({ lines: [{ code: 'ZZ', sold: 3 }, { code: 'AB' }, { code: 'OG', sold: 2 }] }), cfg);
     expect(r.lines.map((l) => l.code)).toEqual(['OG']);
-    expect(incomeFormula(r)).toBe('=1200+800+0+0+600+0');
+    expect(incomeFormula('SMJAZZ-20261022-183000')).toBe(`=SUM(IFERROR(FILTER('Kiosk form log'!H2:M,'Kiosk form log'!B2:B="SMJAZZ-20261022-183000"),0))`);
   });
 });
 

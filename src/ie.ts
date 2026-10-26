@@ -138,9 +138,9 @@ export async function readConfig(client: SheetsLike, now: number): Promise<Confi
   const today = manilaParts(now).date;
   const kiosks = KIOSKS.filter((k) => !k.until || k.until >= today).map((k) => k.name);
   const [logHead = [], ...logRows] = log.values ?? [];
-  const leftCol = readLogLayout(logHead).left;
+  const logLayout = readLogLayout(logHead);
   const last: Config['last'] = {};
-  for (const k of kiosks) last[k] = lastCounts(logRows, k, leftCol);
+  for (const k of kiosks) last[k] = lastCounts(logRows, k, logLayout);
   return {
     kiosks,
     staff: STAFF,
@@ -166,19 +166,29 @@ export function readLogLayout(header: Cell[]) {
   return { water, notes, flavors, left: find('LEFT (FOR THE FORM)') };
 }
 
-/** "Left" per flavor from the latest logged report of a kiosk (the "Left (for the form)" column). */
-export function lastCounts(log: any[][], kiosk: string, leftCol: number) {
+/**
+ * "Left" per flavor from the latest logged report of a kiosk. Read from the flavor
+ * cells ("start+delivered-free-sold=left"), so a count Maan corrects in the log is
+ * used; the "Left (for the form)" column is the fallback.
+ */
+export function lastCounts(log: any[][], kiosk: string, L: ReturnType<typeof readLogLayout>) {
   let best: any[] | undefined;
   for (const r of log) {
-    if (!r || str(r[3]) !== kiosk || typeof r[2] !== 'number' || !r[leftCol]) continue;
+    if (!r || str(r[3]) !== kiosk || typeof r[2] !== 'number') continue;
     if (!best || r[2] > best[2] || (r[2] === best[2] && str(r[0]) > str(best[0]))) best = r;
   }
   if (!best) return { date: null, counts: {} };
+  let counts: Record<string, number> = {};
   try {
-    return { date: serialToIso(best[2]), counts: JSON.parse(str(best[leftCol])) as Record<string, number> };
+    counts = JSON.parse(str(best[L.left]) || '{}');
   } catch {
-    return { date: null, counts: {} };
+    counts = {};
   }
+  for (const [code, col] of Object.entries(L.flavors)) {
+    const m = /=\s*(-?\d+)\s*$/.exec(str(best[col]));
+    if (m) counts[code] = Number(m[1]);
+  }
+  return { date: serialToIso(best[2]), counts };
 }
 
 // ---------------------------------------------------------------- submit
@@ -246,8 +256,13 @@ export function parseReport(body: any, cfg: Pick<Config, 'kiosks' | 'flavors'>):
   };
 }
 
-/** Income as Maan writes it: the amounts added up, always in the form's order (cash, GCash, card, bank, Grab/Panda, online). */
-export const incomeFormula = (r: Report) => `=${PAY.map((k) => r[k]).join('+')}`;
+/** Log columns with the amounts (Cash, GCash, Card, Bank, Grab/Panda, Online), in the form's order. */
+const LOG_PAY = 'H2:M';
+/**
+ * Income looks the report up in the log by its Report ID and adds Cash..Online,
+ * so Maan can fix an amount in the log and Income & Expense follows.
+ */
+export const incomeFormula = (id: string) => `=SUM(IFERROR(FILTER(${q(LOG)}!${LOG_PAY},${q(LOG)}!B2:B="${id}"),0))`;
 
 /** Text written with USER_ENTERED must not turn into a formula. */
 const plain = (s: unknown) => {
@@ -320,7 +335,9 @@ export async function submitReport(client: SheetsLike, r: Report, now: number) {
   for (const l of r.lines) sold[l.code] = (sold[l.code] ?? 0) + l.sold;
   for (const f of L.flavors) line[f.col] = sold[f.code] ? sold[f.code] : '';
   line[L.water] = r.boxes[WATER] ? r.boxes[WATER] : '';
-  line[L.income] = incomeFormula(r);
+  const { stamp, hms } = manilaParts(now);
+  const id = `${r.branch.replace(/[^A-Za-z]/g, '').toUpperCase()}-${r.date.replace(/-/g, '')}-${hms}`;
+  line[L.income] = incomeFormula(id);
 
   const data = [] as { range: string; values: any[][] }[];
   // Write only the cells we set, in runs, so Maan's other cells stay untouched.
@@ -344,8 +361,6 @@ export async function submitReport(client: SheetsLike, r: Report, now: number) {
     },
   ]);
 
-  const { stamp, hms } = manilaParts(now);
-  const id = `${r.branch.replace(/[^A-Za-z]/g, '').toUpperCase()}-${r.date.replace(/-/g, '')}-${hms}`;
   await logReport(client, r, { id, stamp, row, staff, day });
   return { id, row, duplicate, inserted };
 }
@@ -401,6 +416,8 @@ async function logReport(client: SheetsLike, r: Report, x: { id: string; stamp: 
   line[L.notes] = r.notes ?? '';
   line[L.left] = JSON.stringify(left);
   await client.batchUpdateValues([{ range: `${q(LOG)}!A${at}:${colLetter(line.length - 1)}${at}`, values: [line] }], 'RAW');
+  // Total sales adds up the amounts in the row, so it follows Maan's edits.
+  await client.batchUpdateValues([{ range: `${q(LOG)}!G${at}`, values: [[`=SUM(H${at}:M${at})`]] }], 'USER_ENTERED');
 
   // Keep the log in shift-date order (then kiosk, then time sent), not in the order reports came in.
   const rowsNow = Math.max(at, 1 + logRows.length - Math.max(0, same.length - 1));

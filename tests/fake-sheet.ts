@@ -84,6 +84,22 @@ export class FakeSheet implements SheetsLike {
         }
         while (t.length < startIndex) t.push([]);
         t.splice(startIndex, 0, ...Array.from({ length: endIndex - startIndex }, () => []));
+      } else if (q.sortRange) {
+        const { sheetId, startRowIndex, endRowIndex, startColumnIndex, endColumnIndex } = q.sortRange.range;
+        const t = this.tabs[tabOf(sheetId)];
+        const part = t.slice(startRowIndex, endRowIndex).map((r) => (r ?? []).slice(startColumnIndex, endColumnIndex));
+        const cmp = (a: any, b: any) => (a === b ? 0 : a === '' || a == null ? 1 : b === '' || b == null ? -1 : a < b ? -1 : 1);
+        part.sort((a, b) => {
+          for (const s of q.sortRange.sortSpecs) {
+            const c = cmp(a[s.dimensionIndex - startColumnIndex], b[s.dimensionIndex - startColumnIndex]);
+            if (c) return c;
+          }
+          return 0;
+        });
+        part.forEach((vals, i) => {
+          const row = (t[startRowIndex + i] ??= []);
+          vals.forEach((v, j) => (row[startColumnIndex + j] = v));
+        });
       } else if (q.deleteDimension) {
         const { sheetId, startIndex, endIndex } = q.deleteDimension.range;
         this.tabs[tabOf(sheetId)].splice(startIndex, endIndex - startIndex);

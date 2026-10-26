@@ -401,4 +401,15 @@ async function logReport(client: SheetsLike, r: Report, x: { id: string; stamp: 
   line[L.notes] = r.notes ?? '';
   line[L.left] = JSON.stringify(left);
   await client.batchUpdateValues([{ range: `${q(LOG)}!A${at}:${colLetter(line.length - 1)}${at}`, values: [line] }], 'RAW');
+
+  // Keep the log in shift-date order (then kiosk, then time sent), not in the order reports came in.
+  const rowsNow = Math.max(at, 1 + logRows.length - Math.max(0, same.length - 1));
+  await client.batchUpdate([
+    {
+      sortRange: {
+        range: { sheetId: await logSheetId(), startRowIndex: 1, endRowIndex: rowsNow, startColumnIndex: 0, endColumnIndex: L.left + 1 },
+        sortSpecs: [{ dimensionIndex: 2, sortOrder: 'ASCENDING' }, { dimensionIndex: 3, sortOrder: 'ASCENDING' }, { dimensionIndex: 0, sortOrder: 'ASCENDING' }],
+      },
+    },
+  ]);
 }

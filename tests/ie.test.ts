@@ -155,6 +155,17 @@ describe('submitReport', () => {
     expect((await readConfig(s, NOW)).last['SM Jazz'].counts).toEqual({ OG: 9 });
   });
 
+  it('keeps the log in shift-date order, not the order reports were sent', async () => {
+    const s = sheet();
+    await submit(s, { date: '2026-10-23' });
+    await submit(s, { date: '2026-10-21' });
+    await submit(s, { date: '2026-10-22' });
+    expect([2, 3, 4].map((r) => s.row(LOG, r)[2])).toEqual([d('2026-10-21'), d('2026-10-22'), d('2026-10-23')]);
+    await submit(s, { date: '2026-10-21', staff1: 'Che' }); // a resubmit stays on its date
+    expect([2, 3, 4].map((r) => s.row(LOG, r)[2])).toEqual([d('2026-10-21'), d('2026-10-22'), d('2026-10-23')]);
+    expect(s.row(LOG, 2)[4]).toBe('Che');
+  });
+
   it('removes extra log rows for the same kiosk and day', async () => {
     const s = sheet();
     await submit(s);

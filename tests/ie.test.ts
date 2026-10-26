@@ -102,8 +102,24 @@ describe('submitReport', () => {
     expect(log.slice(0, 7)).toEqual(['2026-10-22 18:30', id, d('2026-10-22'), 'SM Jazz', 'Yenna', 5, 2600]);
     expect(log[13]).toBe(40); // discount
     expect(log.slice(14, 19)).toEqual([3, 2, 1, '', 4]);
-    expect(log[19]).toBe('OG 10+6-1-8=7, HN 4+0-0-3=1');
-    expect(log[20]).toBe('Busy');
+    expect(log[19]).toBe('10+6-1-8=7'); // OG
+    expect(log.slice(20, 26)).toEqual(['', '', '', '', '', '', ]);
+    expect(log[26]).toBe('4+0-0-3=1'); // HN
+    expect(log[27]).toBe('Busy');
+    expect(JSON.parse(log[28])).toEqual({ OG: 7, HN: 1 });
+  });
+
+  it('gives a new flavor its own log column before Notes, and still prefills from Left', async () => {
+    const s = sheet();
+    const h = [...IE_HEADER];
+    h.splice(17, 0, 'SB');
+    s.set(IE, 'A2', [h]);
+    for (const r of [3, 4, 5, 6, 7]) s.row(IE, r).splice(17, 0, '');
+    await submit(s, { lines: [{ code: 'SB', start: 0, delivered: 12, free: 0, sold: 5, remain: 7 }] });
+    expect(s.row(LOG, 1).slice(26, 30)).toEqual(['HN', 'SB', 'Notes', 'Left (for the form)']);
+    expect(s.row(LOG, 2)[27]).toBe('0+12-0-5=7');
+    expect(s.row(LOG, 2)[28]).toBe('Busy');
+    expect((await readConfig(s, NOW)).last['SM Jazz'].counts).toEqual({ SB: 7 });
   });
 
   it('writes both staff in Staff', async () => {

@@ -8,6 +8,13 @@
 // Columns are found by their row-2 headers, so a new flavor column (added
 // between "12" and "WATER") shows up on the form by itself.
 //
+// Kiosk form log has one row per report:
+//   A Submitted | Report ID | Date | Kiosk | Staff | I&E row | Total sales | Cash .. Online | Discounts
+//   | Single | Box of 3 | Box of 6 | Box of 12 | Water (S) | one column per flavor "start+delivered-free-sold=left"
+//   | Notes | Left (for the form)
+// Its flavor columns sit between "Water" and "Notes"; a flavor the log has no
+// column for yet gets a new one just before "Notes".
+//
 //   readConfig   - lists for the form, and the last "Left" per flavor from the log tab.
 //   submitReport - fills that day's kiosk row (or inserts one in date order),
 //                  puts an unticked Approved checkbox on it, and logs the full
@@ -122,14 +129,16 @@ export type Config = {
 
 export async function readConfig(client: SheetsLike, now: number): Promise<Config> {
   const [head, log] = await client.batchGet(
-    [`${q(IE)}!A${HEADER_ROW}:AZ${HEADER_ROW}`, `${q(LOG)}!A2:V${LOG_LAST}`],
+    [`${q(IE)}!A${HEADER_ROW}:AZ${HEADER_ROW}`, `${q(LOG)}!A1:AZ${LOG_LAST}`],
     { valueRenderOption: 'UNFORMATTED_VALUE' },
   );
   const layout = readLayout(head.values?.[0] ?? []);
   const today = manilaParts(now).date;
   const kiosks = KIOSKS.filter((k) => !k.until || k.until >= today).map((k) => k.name);
+  const [logHead = [], ...logRows] = log.values ?? [];
+  const leftCol = readLogLayout(logHead).left;
   const last: Config['last'] = {};
-  for (const k of kiosks) last[k] = lastCounts(log.values ?? [], k);
+  for (const k of kiosks) last[k] = lastCounts(logRows, k, leftCol);
   return {
     kiosks,
     staff: STAFF,
@@ -140,16 +149,31 @@ export async function readConfig(client: SheetsLike, now: number): Promise<Confi
   };
 }
 
-/** "Left" per flavor from the latest logged report of a kiosk (log column V). */
-export function lastCounts(log: any[][], kiosk: string) {
+/** Columns of Kiosk form log, from its row-1 headers. */
+export function readLogLayout(header: Cell[]) {
+  const h = header.map((v) => str(v).trim().toUpperCase());
+  const find = (name: string) => {
+    const i = h.indexOf(name);
+    if (i < 0) throw new Error(`${LOG} has no "${name}" column in row 1.`);
+    return i;
+  };
+  const water = find('WATER');
+  const notes = find('NOTES');
+  const flavors: Record<string, number> = {};
+  for (let c = water + 1; c < notes; c++) if (h[c]) flavors[h[c]] = c;
+  return { water, notes, flavors, left: find('LEFT (FOR THE FORM)') };
+}
+
+/** "Left" per flavor from the latest logged report of a kiosk (the "Left (for the form)" column). */
+export function lastCounts(log: any[][], kiosk: string, leftCol: number) {
   let best: any[] | undefined;
   for (const r of log) {
-    if (!r || str(r[3]) !== kiosk || typeof r[2] !== 'number' || !r[21]) continue;
+    if (!r || str(r[3]) !== kiosk || typeof r[2] !== 'number' || !r[leftCol]) continue;
     if (!best || r[2] > best[2] || (r[2] === best[2] && str(r[0]) > str(best[0]))) best = r;
   }
   if (!best) return { date: null, counts: {} };
   try {
-    return { date: serialToIso(best[2]), counts: JSON.parse(str(best[21])) as Record<string, number> };
+    return { date: serialToIso(best[2]), counts: JSON.parse(str(best[leftCol])) as Record<string, number> };
   } catch {
     return { date: null, counts: {} };
   }
@@ -316,18 +340,36 @@ export async function submitReport(client: SheetsLike, r: Report, now: number) {
 }
 
 async function logReport(client: SheetsLike, r: Report, x: { id: string; stamp: string; row: number; staff: string; day: number }) {
-  const [log] = await client.batchGet([`${q(LOG)}!A2:A${LOG_LAST}`], { valueRenderOption: 'UNFORMATTED_VALUE' });
+  const [head, log] = await client.batchGet([`${q(LOG)}!A1:AZ1`, `${q(LOG)}!A2:A${LOG_LAST}`], { valueRenderOption: 'UNFORMATTED_VALUE' });
+  let L = readLogLayout(head.values?.[0] ?? []);
+
+  // A flavor the log has no column for yet gets one just before Notes.
+  const missing = [...new Set(r.lines.map((l) => l.code))].filter((c) => !(c in L.flavors));
+  if (missing.length) {
+    const meta = await client.getMetadata('sheets.properties(sheetId,title)');
+    const sheetId = meta?.sheets?.find((s: any) => s.properties?.title === LOG)?.properties?.sheetId;
+    if (sheetId == null) throw new Error(`The "${LOG}" tab was not found.`);
+    await client.batchUpdate([
+      { insertDimension: { range: { sheetId, dimension: 'COLUMNS', startIndex: L.notes, endIndex: L.notes + missing.length }, inheritFromBefore: true } },
+    ]);
+    await client.batchUpdateValues(
+      [{ range: `${q(LOG)}!${colLetter(L.notes)}1:${colLetter(L.notes + missing.length - 1)}1`, values: [missing] }],
+      'RAW',
+    );
+    const h = [...(head.values?.[0] ?? [])];
+    h.splice(L.notes, 0, ...missing);
+    L = readLogLayout(h);
+  }
+
   const at = 2 + (log.values ?? []).length;
   const left: Record<string, number> = {};
   for (const l of r.lines) left[l.code] = l.remain;
-  const detail = r.lines.map((l) => `${l.code} ${l.start}+${l.delivered}-${l.free}-${l.sold}=${l.remain}`).join(', ');
   const total = PAY.reduce((s, k) => s + r[k], 0);
   const boxes = PRODUCTS.map((_, i) => r.boxes[i] || '');
-  await client.batchUpdateValues(
-    [{
-      range: `${q(LOG)}!A${at}:V${at}`,
-      values: [[x.stamp, x.id, x.day, r.branch, x.staff, x.row, total, ...PAY.map((k) => r[k] || ''), r.discount || '', ...boxes, detail, r.notes ?? '', JSON.stringify(left)]],
-    }],
-    'RAW',
-  );
+  const line: Cell[] = [x.stamp, x.id, x.day, r.branch, x.staff, x.row, total, ...PAY.map((k) => r[k] || ''), r.discount || '', ...boxes];
+  while (line.length <= L.left) line.push('');
+  for (const l of r.lines) line[L.flavors[l.code]] = `${l.start}+${l.delivered}-${l.free}-${l.sold}=${l.remain}`;
+  line[L.notes] = r.notes ?? '';
+  line[L.left] = JSON.stringify(left);
+  await client.batchUpdateValues([{ range: `${q(LOG)}!A${at}:${colLetter(line.length - 1)}${at}`, values: [line] }], 'RAW');
 }

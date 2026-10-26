@@ -75,9 +75,13 @@ export class FakeSheet implements SheetsLike {
     const tabOf = (id: number) => Object.keys(this.ids).find((k) => this.ids[k] === id)!;
     for (const q of requests) {
       if (q.insertDimension) {
-        const { sheetId, startIndex, endIndex } = q.insertDimension.range;
+        const { sheetId, dimension, startIndex, endIndex } = q.insertDimension.range;
         const tab = tabOf(sheetId);
         const t = this.tabs[tab];
+        if (dimension === 'COLUMNS') {
+          for (const row of t) if (row && row.length > startIndex) row.splice(startIndex, 0, ...new Array(endIndex - startIndex).fill(''));
+          continue;
+        }
         while (t.length < startIndex) t.push([]);
         t.splice(startIndex, 0, ...Array.from({ length: endIndex - startIndex }, () => []));
       } else if (q.setDataValidation) {
@@ -92,11 +96,15 @@ export class FakeSheet implements SheetsLike {
 export const IE_HEADER = ['Approved', 'DATE', 'Month', 'Category', 'Description', 'Staff', 3, 6, 12,
   'OG', 'AB', 'CS', 'BN', 'MM', 'CC', 'KK', 'HN', 'WATER', ' Income', ' Expense', 'Account Balance'];
 
+export const LOG_HEADER = ['Submitted', 'Report ID', 'Date', 'Kiosk', 'Staff', 'Income & Expense row', 'Total sales', 'Cash', 'GCash', 'Card',
+  'Bank', 'Grab/Panda', 'Online', 'Discounts given', 'Single', 'Box of 3', 'Box of 6', 'Box of 12', 'Water',
+  'OG', 'AB', 'CS', 'BN', 'MM', 'CC', 'KK', 'HN', 'Notes', 'Left (for the form)'];
+
 /** Income & Expense laid out like Maan's tab (row 1 group labels, row 2 headers). */
 export function seedIncomeExpense(s: FakeSheet) {
   s.ids['Income & Expense'] = 279240159;
   s.ids['Kiosk form log'] = 777000111;
   s.set('Income & Expense', 'G1', [['PACK', '', '', 'FLAVOR']]);
   s.set('Income & Expense', 'A2', [IE_HEADER]);
-  s.set('Kiosk form log', 'A1', [['Submitted', 'Report ID', 'Date']]);
+  s.set('Kiosk form log', 'A1', [LOG_HEADER]);
 }

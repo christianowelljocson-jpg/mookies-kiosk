@@ -7,7 +7,7 @@ The kiosk end-of-shift report at **kiosk.mookiesoatmealcookies.com**: a small Cl
   - **Staff**: who worked (two names joined with " & ").
   - **Flavor columns**: cookies sold per flavor. **WATER**: bottles sold.
   - **Income**: the amounts added up, always in the form's order: `=cash+GCash+card+bank+Grab/Panda+online`.
-  - The row turns **yellow**. Maan checks it and clears the colour.
+  - The row gets an unticked **Approved** checkbox in column A and shows **yellow**. Maan checks the row and ticks the box, which clears the yellow.
 - No row for that day, or the row already filled? A new row is added in date order.
 - The full report (start, delivered, free, left per flavor, boxes, discounts, notes) goes to the **Kiosk form log** tab. The form's Start counts come from the last Left logged there.
 

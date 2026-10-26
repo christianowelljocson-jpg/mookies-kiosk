@@ -14,11 +14,11 @@ function sheet() {
   const s = new FakeSheet();
   seedIncomeExpense(s);
   s.set(IE, 'A3', [
-    [d('2026-10-21'), 'Oct', 'Sales', 'SM JAZZ KIOSK DAILY SALES - Yenna ', '', '', '', '', 2, 3, 1, 0, 4, 2, 1, 2, 3, '=500+600', '', '=R3-S3'],
-    [d('2026-10-22'), 'Oct', 'Rental', 'SM JAZZ KIOSK RENT - NOV', '', '', '', '', '', '', '', '', '', '', '', '', '', '', 33000, '=R4-S4'],
-    [d('2026-10-22'), 'Oct', 'Sales', 'SM JAZZ KIOSK DAILY SALES - Yenna ', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '=R5-S5'],
-    [d('2026-10-22'), 'Oct', 'Sales', 'SM MANILA KIOSK DAILY SALES - Che ', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '=R6-S6'],
-    [d('2026-10-23'), 'Oct', 'Sales', 'SM JAZZ KIOSK DAILY SALES - NASH (reliever) ', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '=R7-S7'],
+    ['', d('2026-10-21'), 'Oct', 'Sales', 'SM JAZZ KIOSK DAILY SALES - Yenna ', '', '', '', '', 2, 3, 1, 0, 4, 2, 1, 2, 3, '=500+600', '', '=S3-T3'],
+    ['', d('2026-10-22'), 'Oct', 'Rental', 'SM JAZZ KIOSK RENT - NOV', '', '', '', '', '', '', '', '', '', '', '', '', '', '', 33000, '=S4-T4'],
+    ['', d('2026-10-22'), 'Oct', 'Sales', 'SM JAZZ KIOSK DAILY SALES - Yenna ', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '=S5-T5'],
+    ['', d('2026-10-22'), 'Oct', 'Sales', 'SM MANILA KIOSK DAILY SALES - Che ', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '=S6-T6'],
+    ['', d('2026-10-23'), 'Oct', 'Sales', 'SM JAZZ KIOSK DAILY SALES - NASH (reliever) ', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '=S7-T7'],
   ]);
   return s;
 }
@@ -44,12 +44,12 @@ describe('layout', () => {
   it('finds the columns by header, flavors between "12" and WATER', () => {
     const L = readLayout(IE_HEADER);
     expect(L.flavors.map((f) => f.code)).toEqual(['OG', 'AB', 'CS', 'BN', 'MM', 'CC', 'KK', 'HN']);
-    expect([L.staff, L.water, L.income, L.expense, L.balance]).toEqual([4, 16, 17, 18, 19]);
+    expect([L.approved, L.staff, L.water, L.income, L.expense, L.balance]).toEqual([0, 5, 17, 18, 19, 20]);
   });
   it('picks up a new flavor column added before WATER', () => {
     const h = [...IE_HEADER];
-    h.splice(16, 0, 'SB');
-    expect(readLayout(h).flavors.at(-1)).toEqual({ code: 'SB', col: 16 });
+    h.splice(17, 0, 'SB');
+    expect(readLayout(h).flavors.at(-1)).toEqual({ code: 'SB', col: 17 });
   });
   it('says which header is missing', () => {
     expect(() => readLayout(IE_HEADER.filter((x) => x !== 'Staff'))).toThrow(/"STAFF"/);
@@ -81,16 +81,17 @@ describe('submitReport', () => {
     const res = await submit(s);
     expect(res).toMatchObject({ row: 5, duplicate: false, inserted: false });
     const r = s.row(IE, 5);
-    expect(r.slice(0, 5)).toEqual([d('2026-10-22'), 'Oct', 'Sales', 'SM JAZZ KIOSK DAILY SALES - Yenna ', 'Yenna']);
-    expect(r[8]).toBe(8); // OG
-    expect(r[15]).toBe(3); // HN
-    expect(r[9]).toBe(''); // AB not sold
-    expect(r[16]).toBe(4); // water
-    expect(r[17]).toBe('=1200+800+0+0+600+0'); // Income in the form's order
-    expect(r[18]).toBe(''); // Expense untouched
-    expect(r[19]).toBe('=R5-S5'); // Balance untouched
-    expect(s.fills[IE][4]).toEqual({ red: 1, green: 0.949, blue: 0.6 });
-    expect(s.row(IE, 6)[17]).toBe(''); // the Manila row is not touched
+    expect(r.slice(0, 6)).toEqual([false, d('2026-10-22'), 'Oct', 'Sales', 'SM JAZZ KIOSK DAILY SALES - Yenna ', 'Yenna']);
+    expect(r[9]).toBe(8); // OG
+    expect(r[16]).toBe(3); // HN
+    expect(r[10]).toBe(''); // AB not sold
+    expect(r[17]).toBe(4); // water
+    expect(r[18]).toBe('=1200+800+0+0+600+0'); // Income in the form's order
+    expect(r[19]).toBe(''); // Expense untouched
+    expect(r[20]).toBe('=S5-T5'); // Balance untouched
+    expect(s.checkboxes[IE]).toEqual(['4:0']); // unticked Approved box: yellow until Maan ticks it
+    expect(s.row(IE, 6)[18]).toBe(''); // the Manila row is not touched
+    expect(s.row(IE, 6)[0]).toBe('');
   });
 
   it('logs the whole report in Kiosk form log', async () => {
@@ -108,7 +109,7 @@ describe('submitReport', () => {
   it('writes both staff in Staff', async () => {
     const s = sheet();
     await submit(s, { staff2: 'Che' });
-    expect(s.cell(IE, 'E5')).toBe('Yenna & Che');
+    expect(s.cell(IE, 'F5')).toBe('Yenna & Che');
   });
 
   it('adds a second row under the day when the kiosk row is already filled', async () => {
@@ -117,23 +118,23 @@ describe('submitReport', () => {
     const res = await submit(s, { cash: 100, gcash: 0, grabAmt: 0, staff1: 'Nash' });
     expect(res).toMatchObject({ row: 7, duplicate: true, inserted: true });
     const r = s.row(IE, 7);
-    expect(r.slice(0, 5)).toEqual([d('2026-10-22'), 'Oct', 'Sales', 'SM JAZZ KIOSK DAILY SALES - Nash ', 'Nash']);
-    expect(r[17]).toBe('=100+0+0+0+0+0');
-    expect(r[19]).toBe('=R7-S7');
-    expect(s.row(IE, 8)[3]).toBe('SM JAZZ KIOSK DAILY SALES - NASH (reliever) '); // Oct 23 moved down
+    expect(r.slice(0, 6)).toEqual([false, d('2026-10-22'), 'Oct', 'Sales', 'SM JAZZ KIOSK DAILY SALES - Nash ', 'Nash']);
+    expect(r[18]).toBe('=100+0+0+0+0+0');
+    expect(r[20]).toBe('=S7-T7');
+    expect(s.row(IE, 8)[4]).toBe('SM JAZZ KIOSK DAILY SALES - NASH (reliever) '); // Oct 23 moved down
   });
 
   it('adds a row in date order when no row was typed for that day', async () => {
     const s = sheet();
     const res = await submit(s, { date: '2026-11-02' });
     expect(res).toMatchObject({ row: 8, inserted: true });
-    expect(s.row(IE, 8).slice(0, 4)).toEqual([d('2026-11-02'), 'Nov', 'Sales', 'SM JAZZ KIOSK DAILY SALES - Yenna ']);
+    expect(s.row(IE, 8).slice(0, 5)).toEqual([false, d('2026-11-02'), 'Nov', 'Sales', 'SM JAZZ KIOSK DAILY SALES - Yenna ']);
   });
 
   it('never turns typed text into a formula', async () => {
     const s = sheet();
     await submit(s, { staff1: '=HYPERLINK("x")' });
-    expect(s.cell(IE, 'E5')).toBe('=HYPERLINK("x")');
+    expect(s.cell(IE, 'F5')).toBe('=HYPERLINK("x")');
     const upd = s.calls.find((c) => c.kind === 'update') as any;
     expect(upd.detail.option).toBe('USER_ENTERED');
   });

@@ -3,15 +3,16 @@
 // against an in-memory sheet.
 //
 // Income & Expense has one row per kiosk per day, which Maan types ahead:
-//   A Date | B Month | C Category "Sales" | D "SM JAZZ KIOSK DAILY SALES - Yenna " | E Staff
+//   A Approved (checkbox) | B Date | C Month | D Category "Sales" | E "SM JAZZ KIOSK DAILY SALES - Yenna " | F Staff
 //   | 3 | 6 | 12 | one column per flavor ... | WATER | Income | Expense | Account Balance
 // Columns are found by their row-2 headers, so a new flavor column (added
 // between "12" and "WATER") shows up on the form by itself.
 //
 //   readConfig   - lists for the form, and the last "Left" per flavor from the log tab.
 //   submitReport - fills that day's kiosk row (or inserts one in date order),
-//                  colours it yellow until Maan clears it, and logs the full
-//                  report in "Kiosk form log".
+//                  puts an unticked Approved checkbox on it, and logs the full
+//                  report in "Kiosk form log". A conditional format on the tab
+//                  shows the row yellow until Maan ticks the box.
 
 export type Cell = string | number | boolean | null | undefined;
 
@@ -32,7 +33,6 @@ const MANILA_OFFSET_MS = 8 * 3600_000;
 const DAY_MS = 86_400_000;
 const SHEETS_EPOCH_DAYS = 25569; // 1970-01-01 as a Sheets date serial
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-const YELLOW = { red: 1, green: 0.949, blue: 0.6 };
 
 /** Kiosks on the form. `until` is the last day a kiosk shows (Manila closes Oct 23, 2026). */
 export const KIOSKS = [
@@ -88,7 +88,7 @@ export function colLetter(i: number): string {
 
 // ---------------------------------------------------------------- layout
 export type Layout = {
-  date: number; month: number; category: number; description: number; staff: number;
+  approved: number; date: number; month: number; category: number; description: number; staff: number;
   packs: number[]; flavors: { code: string; col: number }[]; water: number; income: number; expense: number; balance: number;
 };
 
@@ -105,7 +105,7 @@ export function readLayout(header: Cell[]): Layout {
   const flavors = [];
   for (let c = twelve + 1; c < water; c++) if (h[c]) flavors.push({ code: h[c], col: c });
   return {
-    date: find('DATE'), month: find('MONTH'), category: find('CATEGORY'), description: find('DESCRIPTION'), staff: find('STAFF'),
+    approved: find('APPROVED'), date: find('DATE'), month: find('MONTH'), category: find('CATEGORY'), description: find('DESCRIPTION'), staff: find('STAFF'),
     packs: [find('3'), find('6'), twelve], flavors, water, income: find('INCOME'), expense: find('EXPENSE'), balance: find('ACCOUNT BALANCE'),
   };
 }
@@ -279,6 +279,7 @@ export async function submitReport(client: SheetsLike, r: Report, now: number) {
     const inc = colLetter(L.income), exp = colLetter(L.expense);
     line[L.balance] = `=${inc}${row}-${exp}${row}`;
   }
+  line[L.approved] = false;
   line[L.staff] = plain(staff);
   const sold: Record<string, number> = {};
   for (const l of r.lines) sold[l.code] = (sold[l.code] ?? 0) + l.sold;
@@ -301,10 +302,9 @@ export async function submitReport(client: SheetsLike, r: Report, now: number) {
   await client.batchUpdateValues(data, 'USER_ENTERED');
   await client.batchUpdate([
     {
-      repeatCell: {
-        range: { sheetId, startRowIndex: row - 1, endRowIndex: row, startColumnIndex: 0, endColumnIndex: width },
-        cell: { userEnteredFormat: { backgroundColorStyle: { rgbColor: YELLOW } } },
-        fields: 'userEnteredFormat.backgroundColorStyle',
+      setDataValidation: {
+        range: { sheetId, startRowIndex: row - 1, endRowIndex: row, startColumnIndex: L.approved, endColumnIndex: L.approved + 1 },
+        rule: { condition: { type: 'BOOLEAN' }, strict: true },
       },
     },
   ]);

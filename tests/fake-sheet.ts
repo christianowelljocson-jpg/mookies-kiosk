@@ -1,6 +1,6 @@
 // An in-memory spreadsheet with just what src/ie.ts uses: values:batchGet
 // (rows up to the last row with data, trailing blanks trimmed, like Google),
-// values:batchUpdate, and :batchUpdate for inserting rows and row colour.
+// values:batchUpdate, and :batchUpdate for inserting rows and checkboxes.
 import type { SheetsLike } from '../src/ie';
 
 const colNum = (letters: string) => [...letters].reduce((n, ch) => n * 26 + ch.charCodeAt(0) - 64, 0) - 1;
@@ -15,8 +15,8 @@ function parse(range: string) {
 export class FakeSheet implements SheetsLike {
   tabs: Record<string, any[][]> = {};
   ids: Record<string, number> = {};
-  /** Background colour per tab and 0-based row. */
-  fills: Record<string, Record<number, object>> = {};
+  /** Checkbox cells per tab, as "row:col" (0-based). */
+  checkboxes: Record<string, string[]> = {};
   calls: { kind: 'get' | 'update' | 'batch'; detail: unknown }[] = [];
 
   cell(tab: string, a1: string) {
@@ -80,23 +80,23 @@ export class FakeSheet implements SheetsLike {
         const t = this.tabs[tab];
         while (t.length < startIndex) t.push([]);
         t.splice(startIndex, 0, ...Array.from({ length: endIndex - startIndex }, () => []));
-      } else if (q.repeatCell) {
-        const { sheetId, startRowIndex } = q.repeatCell.range;
-        ((this.fills[tabOf(sheetId)] ??= {})[startRowIndex] = q.repeatCell.cell.userEnteredFormat.backgroundColorStyle.rgbColor);
+      } else if (q.setDataValidation) {
+        const { sheetId, startRowIndex, startColumnIndex } = q.setDataValidation.range;
+        (this.checkboxes[tabOf(sheetId)] ??= []).push(`${startRowIndex}:${startColumnIndex}`);
       }
     }
     return [];
   }
 }
 
-export const IE_HEADER = ['DATE', 'Month', 'Category', 'Description', 'Staff', 3, 6, 12,
+export const IE_HEADER = ['Approved', 'DATE', 'Month', 'Category', 'Description', 'Staff', 3, 6, 12,
   'OG', 'AB', 'CS', 'BN', 'MM', 'CC', 'KK', 'HN', 'WATER', ' Income', ' Expense', 'Account Balance'];
 
 /** Income & Expense laid out like Maan's tab (row 1 group labels, row 2 headers). */
 export function seedIncomeExpense(s: FakeSheet) {
   s.ids['Income & Expense'] = 279240159;
   s.ids['Kiosk form log'] = 777000111;
-  s.set('Income & Expense', 'F1', [['PACK', '', '', 'FLAVOR']]);
+  s.set('Income & Expense', 'G1', [['PACK', '', '', 'FLAVOR']]);
   s.set('Income & Expense', 'A2', [IE_HEADER]);
   s.set('Kiosk form log', 'A1', [['Submitted', 'Report ID', 'Date']]);
 }
